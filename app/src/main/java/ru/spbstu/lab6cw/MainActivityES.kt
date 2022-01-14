@@ -1,19 +1,23 @@
 package ru.spbstu.lab6cw
 
+import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.util.Log
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import android.util.Log
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 
-class MainActivity : AppCompatActivity() {
+class MainActivityES : AppCompatActivity() {
     private var secondsElapsed: Int = 0
     private var startTime: Long = 0
     private var endTime: Long = 0
     private lateinit var textSecondsElapsed: TextView
     private lateinit var sharedPrefs: SharedPreferences
-    private lateinit var backgroundThread: Thread
+    private lateinit var backgroundThread: Future<*>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,29 +32,25 @@ class MainActivity : AppCompatActivity() {
         Log.i("thread", "started")
         secondsElapsed = sharedPrefs.getInt(SECONDS, 0)
         startTime = System.currentTimeMillis()
-        backgroundThread = Thread {
-            try {
-                while (!Thread.currentThread().isInterrupted) {
-                    Thread.sleep(1000)
-                    Log.i("thread", "running")
-                    textSecondsElapsed.post {
-                        textSecondsElapsed.text = getString(
-                            R.string.text,
-                            secondsElapsed + ((System.currentTimeMillis() - startTime) / 1000)
-                        )
-                    }
+        backgroundThread = (applicationContext as ExecutorClass).executor.submit {
+            while (!backgroundThread.isCancelled) {
+                Thread.sleep(1000)
+                Log.i("thread", "running")
+                textSecondsElapsed.post {
+                    textSecondsElapsed.text = getString(
+                        R.string.text,
+                        secondsElapsed + ((System.currentTimeMillis() - startTime) / 1000)
+                    )
                 }
-            } catch (e: InterruptedException) {
-                Log.i("thread", "stoped")
             }
+
         }
-        backgroundThread.start()
         super.onStart()
     }
 
     override fun onStop() {
         Log.i("thread", "stopped, threads: " + Thread.getAllStackTraces().size)
-        backgroundThread.interrupt()
+        backgroundThread.cancel(true)
         endTime = System.currentTimeMillis()
         secondsElapsed += ((endTime - startTime) / 1000).toInt()
         with(sharedPrefs.edit()) {
@@ -62,6 +62,10 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val SECONDS = "Seconds elapsed"
+    }
+
+    class ExecutorClass : Application() {
+        val executor: ExecutorService = Executors.newSingleThreadExecutor()
     }
 
 }
